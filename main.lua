@@ -1,10 +1,9 @@
 -- Contrôleur Principal v2 - ComputerCraft
 
 -- Charger les bibliothèques nécessaires
-local basalt = require("basalt")
--- term, fs, shell, et textutils sont globaux, pas besoin de require.
+local basalt = require("basalt") -- Essentiel. Si Basalt est mal installe, des erreurs surviendront ici ou lors de l'utilisation de basalt.*
 
--- [[ Gestion de l'API Parallel ]]
+-- Gestion de l'API Parallel
 local parallel_api
 local parallel_available = false
 local status_parallel, res_parallel = pcall(function() parallel_api = require("parallel") end)
@@ -114,7 +113,7 @@ local function showPage(pageNameToShow, isRemoteCall)
         if frame and frame.setVisible then
             frame:setVisible(name == pageNameToShow)
         else
-            log("ATTENTION: frame ou frame.setVisible manquant pour la page " .. name)
+            log("ATTENTION: frame ou frame.setVisible manquant pour la page " .. name .. ". Installation Basalt incomplete?")
         end
     end
     currentPageName = pageNameToShow
@@ -135,7 +134,7 @@ local function createMainFrame()
     log("Dimensions ecran: " .. screenWidth .. "x" .. screenHeight)
 
     if not basalt or not basalt.createFrame then
-        log("ERREUR CRITIQUE: API 'basalt' ou 'basalt.createFrame' non disponible."); error("API 'basalt' non disponible pour createFrame")
+        log("ERREUR CRITIQUE: basalt.createFrame est nil. Installation Basalt incomplete/corrompue."); error("basalt.createFrame est nil")
     end
     local frame = basalt.createFrame()
 
@@ -144,11 +143,11 @@ local function createMainFrame()
     end
     log("Frame creee par basalt.createFrame(). Type: " .. type(frame))
 
-    if not frame.setSize then log("ERREUR: Methode 'setSize' non trouvee sur l'objet frame."); error("Methode 'setSize' manquante") end
+    if not frame.setSize then log("ERREUR: Methode 'setSize' non trouvee sur l'objet frame. Installation Basalt incomplete?"); error("Methode 'setSize' manquante") end
     frame:setSize(screenWidth, screenHeight)
     log("Frame apres setSize.")
     
-    if not frame.setBackground then log("ERREUR: Methode 'setBackground' non trouvee sur l'objet frame."); error("Methode 'setBackground' manquante") end
+    if not frame.setBackground then log("ERREUR: Methode 'setBackground' non trouvee sur l'objet frame. Installation Basalt incomplete?"); error("Methode 'setBackground' manquante") end
     frame:setBackground(colors.black) 
     log("Frame apres setBackground.")
 
@@ -161,9 +160,7 @@ local function createMainFrame()
         log("Frame apres setAlwaysOnTop.")
     else
         log("ATTENTION: Methode 'setAlwaysOnTop' non trouvee sur l'objet frame.")
-        log("L'UI pourrait ne pas se comporter comme attendu (superposition).")
         log("CAUSE PROBABLE: Installation de Basalt2 incomplete ou corrompue.")
-        log("SOLUTION SUGGEREE: Re-executez le script 'installer.lua' pour reinstaller Basalt2.")
     end
     
     mainFrame = frame
@@ -175,8 +172,14 @@ local function createNavBar()
     if not mainFrame then log("ERREUR: mainFrame non initialise avant createNavBar"); return end
     local screenWidth, screenHeight = mainFrame:getSize()
     local navBarHeight = 3
-    navBarFrame = basalt.createFrame(mainFrame)
-        :setSize(screenWidth, navBarHeight)
+    
+    if not basalt or not basalt.createFrame then -- Verifier a nouveau ici si createMainFrame a reussi mais basalt a ete corrompu entre temps
+        log("ERREUR CRITIQUE dans createNavBar: basalt.createFrame est nil. Installation Basalt incomplete/corrompue."); error("basalt.createFrame est nil dans createNavBar")
+    end
+    navBarFrame = basalt.createFrame(mainFrame) -- Si mainFrame est valide, createFrame devrait fonctionner si basalt est OK
+
+    if not navBarFrame then log("ERREUR: basalt.createFrame(mainFrame) a retourne nil dans createNavBar"); return end
+    navBarFrame:setSize(screenWidth, navBarHeight)
         :setPosition(1, screenHeight - navBarHeight + 1)
         :setBackground(colors.gray)
 
@@ -186,17 +189,24 @@ local function createNavBar()
     local keypadButtonWidth = 10
     local startX = math.floor((screenWidth - (totalButtonSpace + keypadButtonWidth + 2)) / 2) + 1
 
+    if not basalt.createButton then
+        log("ERREUR CRITIQUE dans createNavBar: basalt.createButton est nil. Installation Basalt incomplete/corrompue."); error("basalt.createButton est nil dans createNavBar")
+    end
+
     for i, pageName in ipairs(pageOrder) do
-        basalt.createButton(navBarFrame)
-            :setText(pageTitles[pageName] or pageName)
+        local btn = basalt.createButton(navBarFrame) -- Ligne ~190, source de l'erreur precedente
+        if not btn then log("ERREUR: basalt.createButton a retourne nil pour la page " .. pageName); goto continue_navbar end
+        btn:setText(pageTitles[pageName] or pageName)
             :setPosition(startX, 1)
             :setSize(buttonWidth, navBarHeight)
             :onClick(function() showPage(pageName) end)
         startX = startX + buttonWidth + 1
+        ::continue_navbar::
     end
 
-    basalt.createButton(navBarFrame)
-        :setText("Keypad")
+    local keypadBtn = basalt.createButton(navBarFrame)
+    if not keypadBtn then log("ERREUR: basalt.createButton a retourne nil pour le bouton Keypad"); return end
+    keypadBtn:setText("Keypad")
         :setPosition(startX, 1)
         :setSize(keypadButtonWidth, navBarHeight)
         :onClick(function() keypad.toggleVisibility() end)
@@ -206,11 +216,13 @@ end
 function keypad.toggleVisibility()
     keypad.isVisible = not keypad.isVisible
     if keypad.frame then
+        if not keypad.frame.setVisible then log("ATTENTION: keypad.frame.setVisible manquant"); return end
         keypad.frame:setVisible(keypad.isVisible)
         if keypad.isVisible then
+            if not keypad.frame.bringToFront then log("ATTENTION: keypad.frame.bringToFront manquant"); return end
             keypad.frame:bringToFront()
             keypad.buffer = ""
-            if keypad.display then keypad.display:setText(keypad.buffer) end
+            if keypad.display and keypad.display.setText then keypad.display:setText(keypad.buffer) end
         end
     end
     log("Keypad visibility: " .. tostring(keypad.isVisible))
@@ -230,22 +242,29 @@ function keypad.handleInput(char)
             keypad.buffer = keypad.buffer .. char
         end
     end
-    if keypad.display then keypad.display:setText(keypad.buffer) end
+    if keypad.display and keypad.display.setText then keypad.display:setText(keypad.buffer) end
 end
 
 local function createKeypad()
     log("Debut createKeypad")
     if not mainFrame then log("ERREUR: mainFrame non initialise avant createKeypad"); return end
+    if not basalt or not basalt.createFrame then log("ERREUR CRITIQUE dans createKeypad: basalt.createFrame est nil."); error("basalt.createFrame est nil dans createKeypad") end
+
     local screenW, screenH = mainFrame:getSize()
     local keypadW, keypadH = 22, 14 
     keypad.frame = basalt.createFrame(mainFrame)
-        :setSize(keypadW, keypadH)
+    if not keypad.frame then log("ERREUR: basalt.createFrame a retourne nil pour keypad.frame"); return end
+
+    keypad.frame:setSize(keypadW, keypadH)
         :setPosition(math.floor((screenW - keypadW) / 2), math.floor((screenH - keypadH - 3) / 2)) 
         :setBackground(colors.darkGray)
         :setVisible(keypad.isVisible)
 
+    if not keypad.frame.addLabel then log("ERREUR: keypad.frame.addLabel manquant"); return end
     keypad.display = keypad.frame:addLabel()
-        :setText(keypad.buffer)
+    if not keypad.display then log("ERREUR: keypad.frame:addLabel() a retourne nil"); return end
+
+    keypad.display:setText(keypad.buffer)
         :setSize(keypadW - 2, 1)
         :setPosition(2, 2)
         :setBackground(colors.black)
@@ -255,31 +274,37 @@ local function createKeypad()
     local btnW, btnH = 6, 2
     local startY = 4
 
+    if not keypad.frame.addButton then log("ERREUR: keypad.frame.addButton manquant"); return end
     for r, row in ipairs(btnLayout) do
         local startX = 2
         for c, caption in ipairs(row) do
-            keypad.frame:addButton()
-                :setText(caption)
+            local btn = keypad.frame:addButton()
+            if not btn then log("ERREUR: keypad.frame:addButton() a retourne nil pour le bouton " .. caption); goto continue_keypad_loop end
+            btn:setText(caption)
                 :setPosition(startX, startY)
                 :setSize(btnW, btnH)
                 :onClick(function() keypad.handleInput(caption) end)
             startX = startX + btnW + 1
+            ::continue_keypad_loop::
         end
         startY = startY + btnH + 1
     end
     
-    keypad.frame:addButton()
-        :setText("X"):setSize(3,1):setPosition(keypadW - 3, 1)
+    local closeBtn = keypad.frame:addButton()
+    if not closeBtn then log("ERREUR: keypad.frame:addButton() a retourne nil pour le bouton fermer"); return end
+    closeBtn:setText("X"):setSize(3,1):setPosition(keypadW - 3, 1)
         :setBackground(colors.red):setForeground(colors.white)
         :onClick(function() keypad.handleInput("CLOSE") end)
     log("Fin createKeypad")
 end
 
 local function populatePage_Dashboard(pageFrame)
+    if not pageFrame.addLabel then log("ERREUR: pageFrame.addLabel manquant pour Dashboard"); return end
     pageFrame:addLabel():setText("Dashboard: Etats des usines et controles ON/OFF ici."):setPosition("center", 5):setSize("parent", 1)
 end
 
 local function populatePage_Autocraft(pageFrame)
+    if not pageFrame.addLabel then log("ERREUR: pageFrame.addLabel manquant pour Autocraft"); return end
     pageFrame:addLabel():setText("Autocraft AE2: Liste des patrons, activation/desactivation."):setPosition("center", 5):setSize("parent", 1)
     if apDevice and apDevice.getPatterns then
         pageFrame:addLabel():setText("Connecte a AP! (getPatterns existe)").setPosition("center", 7)
@@ -289,30 +314,41 @@ local function populatePage_Autocraft(pageFrame)
 end
 
 local function populatePage_TurtleMap(pageFrame)
+    if not pageFrame.addLabel then log("ERREUR: pageFrame.addLabel manquant pour TurtleMap"); return end
     pageFrame:addLabel():setText("Turtle Map: Controle des champs et des turtles agricoles."):setPosition("center", 5):setSize("parent", 1)
 end
 
 local function populatePage_TurtleAnalysis(pageFrame)
+    if not pageFrame.addLabel then log("ERREUR: pageFrame.addLabel manquant pour TurtleAnalysis"); return end
     pageFrame:addLabel():setText("Analyse Turtles: Liste, minimap, details par turtle."):setPosition("center", 5):setSize("parent", 1)
 end
 
 local function populatePage_Reactor(pageFrame)
+    if not pageFrame.addLabel then log("ERREUR: pageFrame.addLabel manquant pour Reactor"); return end
     pageFrame:addLabel():setText("Controle Reacteur: Script a fournir par l'utilisateur."):setPosition("center", 5):setSize("parent", 1)
 end
 
 local function createPages()
     log("Debut createPages")
     if not mainFrame then log("ERREUR: mainFrame non initialise avant createPages"); return end
+    if not basalt or not basalt.createFrame then log("ERREUR CRITIQUE dans createPages: basalt.createFrame est nil."); error("basalt.createFrame est nil dans createPages") end
+    
     local screenWidth, screenHeight = mainFrame:getSize()
-    local navBarHeight = navBarFrame and navBarFrame:getHeight() or 3 
+    local navBarHeight = navBarFrame and navBarFrame.getHeight and navBarFrame:getHeight() or 3 
     local pageHeight = screenHeight - navBarHeight
 
     for _, name in ipairs(pageOrder) do
         pages[name] = basalt.createFrame(mainFrame)
-            :setSize(screenWidth, pageHeight):setPosition(1, 1)
+        if not pages[name] then log("ERREUR: basalt.createFrame a retourne nil pour la page " .. name); goto continue_create_pages end
+        
+        pages[name]:setSize(screenWidth, pageHeight):setPosition(1, 1)
             :setBackground(colors.lightBlue):setVisible(false)
-        pages[name]:addLabel()
-            :setText(pageTitles[name] or name):setPosition("center", 1)
+        
+        if not pages[name].addLabel then log("ERREUR: pages["..name.."].addLabel manquant"); goto continue_create_pages end
+        local titleLabel = pages[name]:addLabel()
+        if not titleLabel then log("ERREUR: pages["..name.."]:addLabel() a retourne nil pour le titre"); goto continue_create_pages end
+
+        titleLabel:setText(pageTitles[name] or name):setPosition("center", 1)
             :setBackground(pages[name]:getBackground()):setForeground(colors.black)
 
         if name == "dashboard" then populatePage_Dashboard(pages[name])
@@ -321,6 +357,7 @@ local function createPages()
         elseif name == "turtleAnalysis" then populatePage_TurtleAnalysis(pages[name])
         elseif name == "reactor" then populatePage_Reactor(pages[name])
         end
+        ::continue_create_pages::
     end
     log("Fin createPages")
 end
@@ -334,13 +371,19 @@ local function handleModemMessage(messageTable)
             showPage(messageTable.page, true)
         end
     elseif messageTable.type == "command" then
-        log("Commande recue: " .. textutils.serialize(messageTable)) -- textutils est global
+        log("Commande recue: " .. textutils.serialize(messageTable))
     end
 end
 
 local function mainLoop()
     log("Lancement de la boucle principale...")
-    local function uiEventHandler() basalt.autoUpdate() end
+    local function uiEventHandler() 
+        if not basalt or not basalt.autoUpdate then 
+            log("ERREUR CRITIQUE: basalt.autoUpdate manquant. Boucle UI ne peut pas demarrer.")
+            while true do os.sleep(1) print("Basalt.autoUpdate manquant!") end -- Boucle d'erreur simple
+        end
+        basalt.autoUpdate() 
+    end
     local function modemEventHandler()
         while true do
             local event, side, senderChannel, replyChannel, message, distance = os.pullEvent("modem_message")
@@ -368,17 +411,22 @@ local function run()
     createKeypad()   
     
     initPeripherals()
-    showPage(currentPageName)
+    if pages[currentPageName] then -- S'assurer que la page initiale existe avant de l'afficher
+        showPage(currentPageName)
+    else
+        log("ATTENTION: Page initiale '" .. currentPageName .. "' n'a pas pu etre creee. Affichage de la premiere page valide si possible.")
+        if #pageOrder > 0 and pages[pageOrder[1]] then showPage(pageOrder[1]) else log("Aucune page valide a afficher.") end
+    end
     mainLoop()
 end
 
 -- Execution securisee
 local ok, err = pcall(run)
 if not ok then
-    term.setBackgroundColor(colors.black)
-    term.setTextColor(colors.red)
-    term.clear()
-    term.setCursorPos(1,1)
+    pcall(function() term.setBackgroundColor(colors.black) end)
+    pcall(function() term.setTextColor(colors.red) end)
+    pcall(function() term.clear() end)
+    pcall(function() term.setCursorPos(1,1) end)
     print("ERREUR CRITIQUE DANS main.lua:")
     print(tostring(err))
     if DEBUG_MODE and type(err) == "string" then
