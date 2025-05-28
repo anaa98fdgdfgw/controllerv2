@@ -139,11 +139,11 @@ local function createNavBar()
 
     if not basalt.createButton then -- Verification cruciale
         log("ERREUR CRITIQUE dans createNavBar: basalt.createButton est nil. Type: " .. type(basalt.createButton) .. ". Verifiez le log initial pour le contenu de 'basalt'.")
-        error("basalt.createButton est nil dans createNavBar (type: " .. type(basalt.createButton)..")")
+        error("basalt.createButton est nil dans createNavBar (type: " .. type(basalt.createButton)..")") -- LIGNE 142 (environ)
     end
 
     for i, pageName in ipairs(pageOrder) do
-        local btn = basalt.createButton(navBarFrame) -- Ligne causant l'erreur si basalt.createButton est nil
+        local btn = basalt.createButton(navBarFrame) 
         if not btn then log("ERREUR: basalt.createButton a retourne nil pour page " .. pageName); goto continue_navbar end
         btn:setText(pageTitles[pageName] or pageName):setPosition(startX, 1):setSize(buttonWidth, navBarHeight):onClick(function() showPage(pageName) end)
         startX = startX + buttonWidth + 1
