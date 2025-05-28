@@ -11,7 +11,7 @@ end
 
 -- Download the main file
 print("[Installer] Downloading main.lua...")
-shell.run("wget", "https://raw.githubusercontent.com/anaa98fdgdfgw/controllerv2/main/main.lua", "main.lua") -- Make sure 'main' is the correct branch
+shell.run("wget", "https://raw.githubusercontent.com/anaa98fdgdfgw/controllerv2/refs/heads/main/main.lua", "main.lua") -- Make sure 'main' is the correct branch
 
 -- Download and install Basalt2 (official)
 print("[Installer] Downloading and installing Basalt2 (UI)...")
