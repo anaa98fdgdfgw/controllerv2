@@ -1,12 +1,24 @@
 -- Contrôleur Principal v2 - ComputerCraft
 
 -- Charger les bibliothèques nécessaires
-local basalt = require("basalt") -- Basalt2 s'enregistre generalement comme "basalt"
--- local term = require("term") -- DOIT ÊTRE SUPPRIMÉE OU COMMENTÉE
--- local fs = require("fs") -- DOIT ÊTRE SUPPRIMÉE OU COMMENTÉE
--- local parallel = require("parallel") -- On teste en supposant qu'elle est globale
+local basalt = require("basalt")
+-- term et fs sont globaux, pas besoin de require
 local shell = require("shell")
 local textutils = require("textutils")
+
+-- [[ Gestion de l'API Parallel ]]
+local parallel_api
+local parallel_available = false
+local status_parallel, res_parallel = pcall(function() parallel_api = require("parallel") end)
+
+if status_parallel and type(parallel_api) == "table" and parallel_api.waitForAny then
+    parallel_available = true
+    print("[Controller] API Parallel chargee avec succes.")
+else
+    print("[Controller] ATTENTION: API Parallel non disponible ou n'a pas pu etre chargee.")
+    if not status_parallel then print("[Controller] Erreur pcall pour require('parallel'): " .. tostring(res_parallel)) end
+    print("[Controller] Le script fonctionnera sans multitache pour le modem et l'UI si le modem est utilise.")
+end
 
 -- [[ Configuration ]]
 local MODEM_CHANNEL = 65001
@@ -78,7 +90,7 @@ local function initPeripherals()
         for _, name in ipairs(peripheral.getNames()) do
             if string.match(peripheral.getType(name) or "", "ae2") or string.match(peripheral.getType(name) or "", "me_controller") then
                 foundAPDevice = peripheral.wrap(name)
-                log("Peripherique potentiel pour AP trouve par type: " .. name)
+                log("Peripherique potentiel pour AP trouve par nom/type: " .. name)
                 break
             end
         end
@@ -113,14 +125,60 @@ end
 
 -- [[ Création des Éléments UI ]]
 local function createMainFrame()
+    log("Debut createMainFrame")
+    if not term or not term.getSize then
+        log("ERREUR CRITIQUE: API 'term' ou 'term.getSize' non disponible.")
+        error("API 'term' non disponible pour getSize")
+    end
     local screenWidth, screenHeight = term.getSize()
-    mainFrame = basalt.createFrame()
-        :setSize(screenWidth, screenHeight)
-        :setBackground(colors.black)
-        :setAlwaysOnTop(true)
+    log("Dimensions ecran: " .. screenWidth .. "x" .. screenHeight)
+
+    if not basalt or not basalt.createFrame then
+        log("ERREUR CRITIQUE: API 'basalt' ou 'basalt.createFrame' non disponible.")
+        error("API 'basalt' non disponible pour createFrame")
+    end
+    local frame = basalt.createFrame()
+
+    if not frame then
+        log("ERREUR CRITIQUE: basalt.createFrame() a retourne nil.")
+        error("basalt.createFrame() a echoue")
+    end
+    log("Frame creee par basalt.createFrame(). Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+
+    if not frame.setSize then log("ERREUR: Methode 'setSize' non trouvee sur l'objet frame."); error("Methode 'setSize' manquante") end
+    frame:setSize(screenWidth, screenHeight)
+    log("Frame apres setSize. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+
+    if not colors or type(colors.black) ~= "number" then
+        log("ATTENTION: API 'colors' ou 'colors.black' non disponible ou type incorrect. Type: " .. type(colors.black) .. ". Valeur: " .. tostring(colors.black))
+    else
+        log("colors.black type: " .. type(colors.black) .. ", value: " .. tostring(colors.black))
+    end
+    
+    if not frame.setBackground then log("ERREUR: Methode 'setBackground' non trouvee sur l'objet frame."); error("Methode 'setBackground' manquante") end
+    frame:setBackground(colors.black) 
+    log("Frame apres setBackground. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+
+    if not frame then -- Verification cruciale si setBackground pouvait retourner nil
+        log("ERREUR CRITIQUE: L'objet frame est devenu nil apres setBackground. Verifiez colors.black et la methode setBackground de Basalt.")
+        error("Objet frame est nil avant setAlwaysOnTop")
+    end
+
+    if not frame.setAlwaysOnTop then
+        log("ERREUR: Methode 'setAlwaysOnTop' non trouvee sur l'objet frame.")
+        log("Cela indique un probleme avec l'installation de Basalt ou une version incompatible.")
+        error("Methode 'setAlwaysOnTop' manquante sur frame (" .. tostring(frame) .. ")")
+    end
+    frame:setAlwaysOnTop(true)
+    log("Frame apres setAlwaysOnTop. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+
+    mainFrame = frame
+    log("Fin createMainFrame, mainFrame assigne.")
 end
 
 local function createNavBar()
+    log("Debut createNavBar")
+    if not mainFrame then log("ERREUR: mainFrame non initialise avant createNavBar"); return end
     local screenWidth, screenHeight = mainFrame:getSize()
     local navBarHeight = 3
     navBarFrame = basalt.createFrame(mainFrame)
@@ -128,14 +186,14 @@ local function createNavBar()
         :setPosition(1, screenHeight - navBarHeight + 1)
         :setBackground(colors.gray)
 
-    local buttonWidth = 12
+    local buttonWidth = 12 
     local numPageButtons = #pageOrder
-    local totalButtonSpace = (numPageButtons * buttonWidth) + ((numPageButtons - 1) * 1)
+    local totalButtonSpace = (numPageButtons * buttonWidth) + ((numPageButtons - 1) * 1) 
     local keypadButtonWidth = 10
     local startX = math.floor((screenWidth - (totalButtonSpace + keypadButtonWidth + 2)) / 2) + 1
 
     for i, pageName in ipairs(pageOrder) do
-        local btn = basalt.createButton(navBarFrame)
+        basalt.createButton(navBarFrame)
             :setText(pageTitles[pageName] or pageName)
             :setPosition(startX, 1)
             :setSize(buttonWidth, navBarHeight)
@@ -148,6 +206,7 @@ local function createNavBar()
         :setPosition(startX, 1)
         :setSize(keypadButtonWidth, navBarHeight)
         :onClick(function() keypad.toggleVisibility() end)
+    log("Fin createNavBar")
 end
 
 function keypad.toggleVisibility()
@@ -171,9 +230,9 @@ function keypad.handleInput(char)
         keypad.buffer = ""
     elseif char == "CLOSE" then
         keypad.toggleVisibility()
-        return
+        return 
     else
-        if #keypad.buffer < 20 then
+        if #keypad.buffer < 20 then 
             keypad.buffer = keypad.buffer .. char
         end
     end
@@ -181,11 +240,13 @@ function keypad.handleInput(char)
 end
 
 local function createKeypad()
+    log("Debut createKeypad")
+    if not mainFrame then log("ERREUR: mainFrame non initialise avant createKeypad"); return end
     local screenW, screenH = mainFrame:getSize()
-    local keypadW, keypadH = 22, 14
+    local keypadW, keypadH = 22, 14 
     keypad.frame = basalt.createFrame(mainFrame)
         :setSize(keypadW, keypadH)
-        :setPosition(math.floor((screenW - keypadW) / 2), math.floor((screenH - keypadH - 3) / 2))
+        :setPosition(math.floor((screenW - keypadW) / 2), math.floor((screenH - keypadH - 3) / 2)) 
         :setBackground(colors.darkGray)
         :setVisible(keypad.isVisible)
 
@@ -217,6 +278,7 @@ local function createKeypad()
         :setText("X"):setSize(3,1):setPosition(keypadW - 3, 1)
         :setBackground(colors.red):setForeground(colors.white)
         :onClick(function() keypad.handleInput("CLOSE") end)
+    log("Fin createKeypad")
 end
 
 local function populatePage_Dashboard(pageFrame)
@@ -245,8 +307,10 @@ local function populatePage_Reactor(pageFrame)
 end
 
 local function createPages()
+    log("Debut createPages")
+    if not mainFrame then log("ERREUR: mainFrame non initialise avant createPages"); return end
     local screenWidth, screenHeight = mainFrame:getSize()
-    local navBarHeight = 3
+    local navBarHeight = navBarFrame and navBarFrame:getHeight() or 3 -- S'assurer que navBarFrame existe ou utiliser une valeur par defaut
     local pageHeight = screenHeight - navBarHeight
 
     for _, name in ipairs(pageOrder) do
@@ -264,6 +328,7 @@ local function createPages()
         elseif name == "reactor" then populatePage_Reactor(pages[name])
         end
     end
+    log("Fin createPages")
 end
 
 local function handleModemMessage(messageTable)
@@ -289,10 +354,11 @@ local function mainLoop()
         end
     end
 
-    if enderModem then
-        -- Si parallel n'est pas require et n'est pas global, ceci causera une erreur:
-        parallel.waitForAny(uiEventHandler, modemEventHandler)
+    if enderModem and parallel_available then
+        log("Lancement UI et Modem en parallele.")
+        parallel_api.waitForAny(uiEventHandler, modemEventHandler)
     else
+        log("Lancement UI seulement (pas de parallel_api ou pas de modem).")
         uiEventHandler()
     end
 end
@@ -302,15 +368,18 @@ local function run()
     term.setCursorPos(1,1)
     print("Demarrage du Controleur Principal v2...")
 
+    -- L'ordre est important ici
     createMainFrame()
-    createPages()
-    createNavBar()
-    createKeypad()
+    createNavBar()   -- NavBar depend de mainFrame pour sa position relative en bas
+    createPages()    -- Pages dependent de mainFrame et navBarFrame (pour la hauteur)
+    createKeypad()   -- Keypad depend de mainFrame
+    
     initPeripherals()
     showPage(currentPageName)
     mainLoop()
 end
 
+-- Execution securisee
 local ok, err = pcall(run)
 if not ok then
     term.setBackgroundColor(colors.black)
