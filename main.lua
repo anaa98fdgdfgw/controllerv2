@@ -2,7 +2,7 @@
 
 -- Charger les bibliothèques nécessaires
 local basalt = require("basalt") -- Basalt2 s'enregistre generalement comme "basalt"
-local term = require("term")
+-- local term = require("term") -- <--- LIGNE SUPPRIMÉE
 local fs = require("fs")
 local parallel = require("parallel")
 local shell =require("shell")
@@ -124,7 +124,7 @@ end
 
 -- [[ Création des Éléments UI ]]
 local function createMainFrame()
-    local screenWidth, screenHeight = term.getSize()
+    local screenWidth, screenHeight = term.getSize() -- Utilisera le term global
     mainFrame = basalt.createFrame()
         :setSize(screenWidth, screenHeight)
         :setBackground(colors.black)
@@ -340,8 +340,8 @@ end
 
 -- [[ Démarrage du Script ]]
 local function run()
-    term.clear()
-    term.setCursorPos(1,1)
+    term.clear() -- Utilisera le term global
+    term.setCursorPos(1,1) -- Utilisera le term global
     print("Demarrage du Controleur Principal v2...")
 
     createMainFrame()
@@ -359,10 +359,10 @@ end
 -- Execution securisee
 local ok, err = pcall(run)
 if not ok then
-    term.setBackgroundColor(colors.black)
-    term.setTextColor(colors.red)
-    term.clear()
-    term.setCursorPos(1,1)
+    term.setBackgroundColor(colors.black) -- Utilisera le term global
+    term.setTextColor(colors.red) -- Utilisera le term global
+    term.clear() -- Utilisera le term global
+    term.setCursorPos(1,1) -- Utilisera le term global
     print("ERREUR CRITIQUE DANS main.lua:")
     print(tostring(err))
     if DEBUG_MODE and type(err) == "string" then -- Afficher la trace si disponible
