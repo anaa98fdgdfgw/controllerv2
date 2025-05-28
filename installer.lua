@@ -15,7 +15,7 @@ shell.run("wget", "https://raw.githubusercontent.com/anaa98fdgdfgw/controllerv2/
 
 -- Download and install Basalt2 (official)
 print("[Installer] Downloading and installing Basalt2 (UI)...")
-local basalt_success, basalt_err = shell.run("wget run https://raw.githubusercontent.com/Pyroxenium/Basalt2/main/install.lua -r")
+local basalt_success, basalt_err = shell.run("wget run https://raw.githubusercontent.com/Pyroxenium/Basalt2/main/install.lua")
 if not basalt_success then
     printError("[Installer] Error installing Basalt2: " .. (basalt_err or "unknown"))
     return
