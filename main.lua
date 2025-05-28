@@ -2,9 +2,7 @@
 
 -- Charger les bibliothèques nécessaires
 local basalt = require("basalt")
--- term et fs sont globaux, pas besoin de require
-local shell = require("shell")
-local textutils = require("textutils")
+-- term, fs, shell, et textutils sont globaux, pas besoin de require.
 
 -- [[ Gestion de l'API Parallel ]]
 local parallel_api
@@ -113,7 +111,11 @@ local function showPage(pageNameToShow, isRemoteCall)
     end
 
     for name, frame in pairs(pages) do
-        frame:setVisible(name == pageNameToShow)
+        if frame and frame.setVisible then
+            frame:setVisible(name == pageNameToShow)
+        else
+            log("ATTENTION: frame ou frame.setVisible manquant pour la page " .. name)
+        end
     end
     currentPageName = pageNameToShow
     log("Affichage de la page: " .. pageNameToShow)
@@ -127,51 +129,43 @@ end
 local function createMainFrame()
     log("Debut createMainFrame")
     if not term or not term.getSize then
-        log("ERREUR CRITIQUE: API 'term' ou 'term.getSize' non disponible.")
-        error("API 'term' non disponible pour getSize")
+        log("ERREUR CRITIQUE: API 'term' ou 'term.getSize' non disponible."); error("API 'term' non disponible pour getSize")
     end
     local screenWidth, screenHeight = term.getSize()
     log("Dimensions ecran: " .. screenWidth .. "x" .. screenHeight)
 
     if not basalt or not basalt.createFrame then
-        log("ERREUR CRITIQUE: API 'basalt' ou 'basalt.createFrame' non disponible.")
-        error("API 'basalt' non disponible pour createFrame")
+        log("ERREUR CRITIQUE: API 'basalt' ou 'basalt.createFrame' non disponible."); error("API 'basalt' non disponible pour createFrame")
     end
     local frame = basalt.createFrame()
 
     if not frame then
-        log("ERREUR CRITIQUE: basalt.createFrame() a retourne nil.")
-        error("basalt.createFrame() a echoue")
+        log("ERREUR CRITIQUE: basalt.createFrame() a retourne nil."); error("basalt.createFrame() a echoue")
     end
-    log("Frame creee par basalt.createFrame(). Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+    log("Frame creee par basalt.createFrame(). Type: " .. type(frame))
 
     if not frame.setSize then log("ERREUR: Methode 'setSize' non trouvee sur l'objet frame."); error("Methode 'setSize' manquante") end
     frame:setSize(screenWidth, screenHeight)
-    log("Frame apres setSize. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
-
-    if not colors or type(colors.black) ~= "number" then
-        log("ATTENTION: API 'colors' ou 'colors.black' non disponible ou type incorrect. Type: " .. type(colors.black) .. ". Valeur: " .. tostring(colors.black))
-    else
-        log("colors.black type: " .. type(colors.black) .. ", value: " .. tostring(colors.black))
-    end
+    log("Frame apres setSize.")
     
     if not frame.setBackground then log("ERREUR: Methode 'setBackground' non trouvee sur l'objet frame."); error("Methode 'setBackground' manquante") end
     frame:setBackground(colors.black) 
-    log("Frame apres setBackground. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
+    log("Frame apres setBackground.")
 
-    if not frame then -- Verification cruciale si setBackground pouvait retourner nil
-        log("ERREUR CRITIQUE: L'objet frame est devenu nil apres setBackground. Verifiez colors.black et la methode setBackground de Basalt.")
-        error("Objet frame est nil avant setAlwaysOnTop")
+    if not frame then 
+        log("ERREUR CRITIQUE: L'objet frame est devenu nil apres setBackground."); error("Objet frame est nil avant setAlwaysOnTop")
     end
 
-    if not frame.setAlwaysOnTop then
-        log("ERREUR: Methode 'setAlwaysOnTop' non trouvee sur l'objet frame.")
-        log("Cela indique un probleme avec l'installation de Basalt ou une version incompatible.")
-        error("Methode 'setAlwaysOnTop' manquante sur frame (" .. tostring(frame) .. ")")
+    if frame.setAlwaysOnTop then
+        frame:setAlwaysOnTop(true)
+        log("Frame apres setAlwaysOnTop.")
+    else
+        log("ATTENTION: Methode 'setAlwaysOnTop' non trouvee sur l'objet frame.")
+        log("L'UI pourrait ne pas se comporter comme attendu (superposition).")
+        log("CAUSE PROBABLE: Installation de Basalt2 incomplete ou corrompue.")
+        log("SOLUTION SUGGEREE: Re-executez le script 'installer.lua' pour reinstaller Basalt2.")
     end
-    frame:setAlwaysOnTop(true)
-    log("Frame apres setAlwaysOnTop. Type: " .. type(frame) .. ", Adresse: " .. tostring(frame))
-
+    
     mainFrame = frame
     log("Fin createMainFrame, mainFrame assigne.")
 end
@@ -310,7 +304,7 @@ local function createPages()
     log("Debut createPages")
     if not mainFrame then log("ERREUR: mainFrame non initialise avant createPages"); return end
     local screenWidth, screenHeight = mainFrame:getSize()
-    local navBarHeight = navBarFrame and navBarFrame:getHeight() or 3 -- S'assurer que navBarFrame existe ou utiliser une valeur par defaut
+    local navBarHeight = navBarFrame and navBarFrame:getHeight() or 3 
     local pageHeight = screenHeight - navBarHeight
 
     for _, name in ipairs(pageOrder) do
@@ -340,7 +334,7 @@ local function handleModemMessage(messageTable)
             showPage(messageTable.page, true)
         end
     elseif messageTable.type == "command" then
-        log("Commande recue: " .. textutils.serialize(messageTable))
+        log("Commande recue: " .. textutils.serialize(messageTable)) -- textutils est global
     end
 end
 
@@ -368,11 +362,10 @@ local function run()
     term.setCursorPos(1,1)
     print("Demarrage du Controleur Principal v2...")
 
-    -- L'ordre est important ici
     createMainFrame()
-    createNavBar()   -- NavBar depend de mainFrame pour sa position relative en bas
-    createPages()    -- Pages dependent de mainFrame et navBarFrame (pour la hauteur)
-    createKeypad()   -- Keypad depend de mainFrame
+    createNavBar()   
+    createPages()    
+    createKeypad()   
     
     initPeripherals()
     showPage(currentPageName)
